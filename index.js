@@ -665,6 +665,11 @@ app.listen(3001, () =>
 
 // ---- MARKET RECAP ----
 async function runMarketRecap() {
+  if (!isMarketOpen()) {
+    console.log("⚪ Market closed — skipping AI Market Recap.");
+    return;
+  }
+
   try {
     const recap = await getTopTickersFromDiscord();
     if (!recap || recap.length === 0) {
@@ -683,7 +688,7 @@ async function runMarketRecap() {
 
     // Split and send long messages
     const fullMessage = `🧠 **AI Market Recap:**\n${cleanedRecap}`;
-    const chunks = fullMessage.match(/[\s\S]{1,1990}/g); // split into 1990-char parts
+    const chunks = fullMessage.match(/[\s\S]{1,1990}/g);
 
     for (const chunk of chunks) {
       await channel.send(chunk);
@@ -698,6 +703,11 @@ async function runMarketRecap() {
 
 // ---- UNUSUAL FLOW ----
 async function runUnusualFlow() {
+  if (!isMarketOpen()) {
+    console.log("⚪ Market closed — skipping AI Unusual Flow.");
+    return;
+  }
+
   try {
     const analysis = await detectUnusualFromDiscord();
     if (!analysis || analysis.length === 0) {
@@ -717,17 +727,19 @@ async function runUnusualFlow() {
 
 // ---- SCHEDULE TASKS ----
 cron.schedule("*/30 * * * *", async () => {
-  console.log("⏰ Running AI Market Recap...");
-  await runMarketRecap();
-
-  console.log("⏰ Running AI Unusual Flow...");
-  await runUnusualFlow();
+  if (isMarketOpen()) {
+    console.log("🧠 Market open — running AI summaries...");
+    await runMarketRecap();
+    await runUnusualFlow();
+  } else {
+    console.log("⚪ Market closed — skipping AI summaries this cycle.");
+  }
 });
 
 // ---- END OF DAY SUMMARY ----
 async function runEndOfDaySummary() {
   try {
-    const recap = await getTopTickersFromDiscord(); // reuse top-dogs Discord data
+    const recap = await getTopTickersFromDiscord();
     if (!recap || recap.length === 0) {
       console.warn("⚠️ No data found for end-of-day summary.");
       return;
