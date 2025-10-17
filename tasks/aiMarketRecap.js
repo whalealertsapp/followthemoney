@@ -12,27 +12,14 @@ const client = new Client({
 export async function getTopTickersFromDiscord() {
   await client.login(process.env.DISCORD_TOKEN);
 
-  // 🔄 Fetch messages from multiple flow channels
-  const channelIds = [
-    process.env.WHALEALERT_CHANNEL_ID, // main calls
-    process.env.TOPDOG_CHANNEL_ID,     // large flows
-    process.env.RISKYBIZ_CHANNEL_ID,   // smaller premiums
-    process.env.PENNYWHALES_CHANNEL_ID // micro trades
-  ].filter(Boolean);
+  // 🔄 Fetch messages from the FLOW-LOG channel (contains both CALLs and PUTs)
+const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
+const messages = await flowLog.messages.fetch({ limit: 100 });
+const allMessages = [...messages.values()];
 
-  const calls = [];
-  const puts = [];
-  const allMessages = [];
+const calls = [];
+const puts = [];
 
-  for (const id of channelIds) {
-    try {
-      const channel = await client.channels.fetch(id);
-      const msgs = await channel.messages.fetch({ limit: 100 });
-      allMessages.push(...msgs.values());
-    } catch (err) {
-      console.warn(`⚠️ Could not fetch channel ${id}:`, err.message);
-    }
-  }
 
   // 🕒 last 30 minutes only
   const cutoff = Date.now() - 30 * 60 * 1000;
