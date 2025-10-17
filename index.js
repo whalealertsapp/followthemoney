@@ -6,6 +6,8 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const crypto = require("crypto");
 const express = require("express");
+const processedTrades = new Set();
+
 
 import { Client, GatewayIntentBits, EmbedBuilder } from "discord.js";
 import sqlite3 from "sqlite3";
@@ -121,6 +123,9 @@ async function safeFetch(url, options, retries = 3) {
 }
 
 // ===== POLL UW API =====
+// 🧠 Prevent reposting identical trades across poll cycles
+const processedTrades = new Set();
+
 async function pollUW(db) {
   if (DEBUG_MODE) console.log(`⏳ Polling UW API every ${POLL_MS}ms...`);
 
@@ -136,6 +141,24 @@ async function pollUW(db) {
   if (DEBUG_MODE) console.log(`🔎 Retrieved ${json.data.length} trades`);
 
   for (const t of json.data) {
+    // 🧩 Create a unique fingerprint for this trade to prevent duplicates
+    const tradeKey = `${t.ticker}-${t.type}-${t.strike}-${t.expiry}-${t.created_at}-${t.total_premium}`;
+
+    // 🚫 Skip if this trade was already processed
+    if (processedTrades.has(tradeKey)) {
+      if (DEBUG_MODE) console.log(`⚠️ Skipping duplicate trade: ${tradeKey}`);
+      continue;
+    }
+
+    // ✅ Mark it as processed
+    processedTrades.add(tradeKey);
+
+    // 🧹 Prevent memory growth (keep latest 5k trades)
+    if (processedTrades.size > 5000) {
+      const firstKey = processedTrades.values().next().value;
+      processedTrades.delete(firstKey);
+    }
+
     try {
       const normalized = {
         uw_id: t.id || `${t.ticker}-${t.strike}-${t.expiry}-${t.created_at}`,
