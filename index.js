@@ -664,6 +664,7 @@ console.log("📩 Incoming webhook from Whop:", req.body);
 
 const PORT = process.env.PORT || 3001;
 
+// ---- START EXPRESS SERVER SAFELY ----
 if (!process.env.RENDER || process.env.NODE_APP_INSTANCE === "0") {
   app.listen(PORT, () => console.log(`🚀 Listening on port ${PORT}`));
 } else {
