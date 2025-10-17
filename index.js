@@ -206,36 +206,68 @@ async function pollUW(db) {
           if (normalized.premium >= 300_000 && daysLeft > 0 && daysLeft <= 10)
             await postShortFuseWhale(normalized, daysLeft);
 
-          // --- PENNY WHALE LOGIC ---
-          const trueAvg =
-            normalized.avg_price && normalized.avg_price > 0
-              ? normalized.avg_price
-              : normalized.contracts
-              ? normalized.premium / (normalized.contracts * 100)
-              : 0;
-          if (normalized.premium >= 100_000 && trueAvg > 0 && trueAvg <= 1.0)
-            await postPennyWhale({ ...normalized, avg_price: trueAvg });
         }
       }
 
-      // === HANDLE PUT TRADES ===
-      if (normalized.premium >= MIN_PREMIUM && normalized.type === "put") {
-        const result = await runSql(
-          db,
-          `INSERT OR IGNORE INTO whale_trades
-           (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          Object.values(normalized)
-        );
+// === HANDLE CALL TRADES ===
+if (normalized.premium >= MIN_PREMIUM && normalized.type === "call") {
+  const result = await runSql(
+    db,
+    `INSERT OR IGNORE INTO whale_trades
+     (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    Object.values(normalized)
+  );
 
-        if (result.changes > 0) {
-          console.log(
-            `✅ Saved trade: ${normalized.ticker} PUT $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
-          );
+  if (result.changes > 0) {
+    console.log(
+      `✅ Saved trade: ${normalized.ticker} CALL $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
+    );
 
-          await postPutTrade(normalized);
-        }
-      }
+    await postTrade(normalized);
+
+    let daysLeft = 0;
+    try {
+      const expDate = new Date(`${normalized.expiration}T00:00:00Z`);
+      const today = new Date();
+      daysLeft = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+    } catch {}
+
+    if (normalized.premium >= 1_000_000) await postMegaWhale(normalized, daysLeft);
+    if (normalized.premium >= 300_000 && daysLeft > 0 && daysLeft <= 10)
+      await postShortFuseWhale(normalized, daysLeft);
+  }
+}
+
+// === HANDLE PUT TRADES ===
+if (normalized.premium >= MIN_PREMIUM && normalized.type === "put") {
+  const result = await runSql(
+    db,
+    `INSERT OR IGNORE INTO whale_trades
+     (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    Object.values(normalized)
+  );
+
+  if (result.changes > 0) {
+    console.log(
+      `✅ Saved trade: ${normalized.ticker} PUT $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
+    );
+
+    await postPutTrade(normalized);
+  }
+}
+
+// --- PENNY WHALE LOGIC (runs for all trades, not limited by $300K MIN_PREMIUM) ---
+const trueAvg = normalized.avg_price > 0
+  ? normalized.avg_price
+  : (normalized.contracts > 0 ? normalized.premium / (normalized.contracts * 100) : 0);
+
+if (normalized.premium >= 100_000 && trueAvg > 0 && trueAvg <= 1.0) {
+  console.log(`🐋 Penny Whale detected: ${normalized.ticker} ${normalized.type.toUpperCase()} $${normalized.strike} exp ${normalized.expiration} — Avg $${trueAvg.toFixed(2)}, Premium ${numFmt(normalized.premium)}`);
+  await postPennyWhale({ ...normalized, avg_price: trueAvg });
+}
+
     } catch (err) {
       console.error("❌ DB insert error:", err);
     }
