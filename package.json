@@ -1,0 +1,35 @@
+{
+  "name": "followthemoney-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for FollowTheMoney — AI options flow & market recap automation",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "recap": "node index.js recap",
+    "unusual": "node index.js unusual"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "options-flow",
+    "openai",
+    "followthemoney"
+  ],
+  "author": "Hotfire",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.22.1",
+    "dotenv": "^17.2.2",
+    "express": "^4.21.2",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.1.0",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "twitter-api-v2": "^1.27.0"
+  },
+  "devDependencies": {
+    "ngrok": "^5.0.0-beta.2"
+  }
+}

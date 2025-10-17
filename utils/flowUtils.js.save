@@ -1,0 +1,69 @@
+// ===== /utils/flowUtils.js (Fixed for new schema) =====
+const sqlite3 = require('sqlite3').verbose();
+const DB_PATH = './whales.db';
+
+function getRecentTrades(sinceTimestamp) {
+  const db = new sqlite3.Database(DB_PATH);
+
+  return new Promise((resolve, reject) => {
+    const sql = `
+      SELECT ticker, premium, strike, expiration, spot, type, trade_time
+      FROM option_trades
+      WHERE type = 'call'
+        AND trade_time >= ?
+      ORDER BY trade_time DESC
+      LIMIT 500
+    `;
+
+    db.all(sql, [sinceTimestamp], (err, rows) => {
+      db.close();
+      if (err) {
+        console.error('❌ DB error in getRecentTrades:', err.message);
+        reject(err);
+      } else {
+        resolve(rows || []);
+      }
+    });
+  });
+}
+
+module.exports = { getRecentTrades };
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./whales.db');
+
+function getRecentTrades(minutes = 15) {
+  return new Promise((resolve, reject) => {
+    const since = Date.now() - minutes * 60 * 1000;
+    db.all(
+      `SELECT ticker, premium, strike, expiration, spot, is_put, time
+       FROM option_trades
+       WHERE is_put = 0 AND time >= ?`,
+      [since],
+      (err, rows) => (err ? reject(err) : resolve(rows))
+    );
+  });
+}
+
+function getTopTickers(trades, n = 5) {
+  const totals = {};
+  trades.forEach(t => {
+    if (!totals[t.ticker]) totals[t.ticker] = 0;
+    totals[t.ticker] += t.premium || 0;
+  });
+  return Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([ticker, total]) => ({ ticker, totalPremium: total }));
+}
+
+function detectUnusual(trades) {
+  return trades.filter(t => {
+    const otm = t.strike > t.spot * 1.2;
+    const shortFuse =
+      (new Date(t.expiration) - Date.now()) / (1000 * 60 * 60 * 24) < 7;
+    const largeBuy = t.premium > 500000;
+    return otm || shortFuse || largeBuy;
+  });
+}
+
+module.exports = { getRecentTrades, getTopTickers, detectUnusual };

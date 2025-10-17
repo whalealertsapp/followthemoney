@@ -1,0 +1,11 @@
+# Local environment file
+.env
+
+# Local database
+whales.db
+
+# Installed dependencies
+node_modules/
+
+# Logs and temp files
+*.log
