@@ -673,37 +673,38 @@ app.listen(3001, () =>
 })();
 
 // ===== AI SUMMARIES (EVERY 30 MINUTES) =====
+import { getMarketRecapSummary } from "./tasks/aiMarketRecap.js";
+import { detectUnusualFromDiscord } from "./tasks/aiUnusualFlow.js";
 
 // ---- MARKET RECAP ----
 async function runMarketRecap() {
   try {
-    const recap = await getTopTickersFromDiscord();
+    const recap = await getMarketRecapSummary();
     if (!recap || recap.length === 0) {
-      console.warn("⚠️ No top tickers found for recap.");
+      console.warn("⚠️ No recap data returned.");
       return;
     }
 
-    // Clean duplicate title if already included in recap
-    let cleanedRecap = recap.replace(/^🧠\s*\*\*AI Market Recap:\*\*/i, "").trim();
+    // 🧹 Clean duplicate title if it’s already included
+    const cleaned = recap.replace(/^🧠\s*\*\*AI Market Recap:?(\*\*)?/i, "").trim();
 
-    const channel = await client.channels.fetch(process.env.MARKET_RECAP_CHANNEL_ID);
-    if (!channel) {
+    const recapChannel = await client.channels.fetch(process.env.MARKET_RECAP_CHANNEL_ID);
+    if (!recapChannel) {
       console.error("❌ Market Recap channel not found.");
       return;
     }
 
-    // Split and send long messages
-    const fullMessage = `🧠 **AI Market Recap:**\n${cleanedRecap}`;
-    const chunks = fullMessage.match(/[\s\S]{1,1990}/g); // split into 1990-char parts
+    const message = `🧠 **AI Market Recap:**\n${cleaned}`;
+    const chunks = message.match(/[\s\S]{1,1990}/g) || [message];
 
     for (const chunk of chunks) {
-      await channel.send(chunk);
-      await new Promise((r) => setTimeout(r, 500)); // prevent rate-limit issues
+      await recapChannel.send(chunk);
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     console.log("✅ Posted AI Market Recap");
   } catch (err) {
-    console.error("AI Market Recap failed:", err);
+    console.error("❌ Error posting AI Market Recap:", err);
   }
 }
 
@@ -716,16 +717,30 @@ async function runUnusualFlow() {
       return;
     }
 
-    const channel = await client.channels.fetch(process.env.UNUSUAL_FLOW_CHANNEL_ID);
-    if (channel) {
-      await channel.send(`🚨 **AI Unusual Flow:**\n${analysis}`);
-      console.log("✅ Posted AI Unusual Flow");
+    // 🧹 Clean duplicate title if it’s already included
+    const cleaned = analysis.replace(/^🚨\s*\*\*AI Unusual Flow:?(\*\*)?/i, "").trim();
+
+    const flowChannel = await client.channels.fetch(process.env.UNUSUAL_FLOW_CHANNEL_ID);
+    if (!flowChannel) {
+      console.error("❌ Unusual Flow channel not found.");
+      return;
     }
+
+    const message = `🚨 **AI Unusual Flow:**\n${cleaned}`;
+    const chunks = message.match(/[\s\S]{1,1990}/g) || [message];
+
+    for (const chunk of chunks) {
+      await flowChannel.send(chunk);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    console.log("✅ Posted AI Unusual Flow");
   } catch (err) {
-    console.error("AI Unusual Flow failed:", err);
+    console.error("❌ Error posting AI Unusual Flow:", err);
   }
 }
 
+// ---- SCHEDULED EXECUTION ----
 cron.schedule(
   "*/30 * * * *",
   async () => {
@@ -740,6 +755,22 @@ cron.schedule(
   },
   { timezone: "America/New_York" }
 );
+
+// ===== MANUAL TRIGGERS (for Render Shell or Local Testing) =====
+if (process.argv.includes("--recap")) {
+  console.log("🧠 Manual trigger: AI Market Recap");
+  runMarketRecap().then(() => process.exit(0));
+}
+
+if (process.argv.includes("--flow")) {
+  console.log("🚨 Manual trigger: AI Unusual Flow");
+  runUnusualFlow().then(() => process.exit(0));
+}
+
+if (process.argv.includes("--tally")) {
+  console.log("📊 Manual trigger: Flow Tally");
+  postFlowTally().then(() => process.exit(0));
+}
 
 
 // ---- END OF DAY SUMMARY ----
