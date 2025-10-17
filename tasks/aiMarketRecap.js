@@ -13,13 +13,12 @@ export async function getTopTickersFromDiscord() {
   await client.login(process.env.DISCORD_TOKEN);
 
   // 🔄 Fetch messages from the FLOW-LOG channel (contains both CALLs and PUTs)
-const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
-const messages = await flowLog.messages.fetch({ limit: 100 });
-const allMessages = [...messages.values()];
+  const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
+  const messages = await flowLog.messages.fetch({ limit: 100 });
+  const allMessages = [...messages.values()];
 
-const calls = [];
-const puts = [];
-
+  const calls = [];
+  const puts = [];
 
   // 🕒 last 30 minutes only
   const cutoff = Date.now() - 30 * 60 * 1000;
@@ -49,6 +48,13 @@ const puts = [];
   console.log(
     `🧩 MarketRecap parsed ${callCount} CALLs ($${callTotal.toLocaleString()}) and ${putCount} PUTs ($${putTotal.toLocaleString()}) from past 30 min`
   );
+
+  // 🚫 Skip posting if no new trades
+  if (callCount === 0 && putCount === 0) {
+    console.log("⚠️ No new trades in the past 30 minutes — skipping AI Market Recap post.");
+    await client.destroy();
+    return;
+  }
 
   // 🧠 AI prompt
   const prompt = `
