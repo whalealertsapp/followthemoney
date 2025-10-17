@@ -726,19 +726,21 @@ async function runUnusualFlow() {
   }
 }
 
-// ---- SCHEDULE TASKS ----
-import { postFlowTally } from "./tasks/flowTally.js";
+cron.schedule(
+  "*/30 * * * *",
+  async () => {
+    console.log("⏰ Running AI Market Recap...");
+    await runMarketRecap();
 
-cron.schedule("*/30 * * * *", async () => {
-  console.log("⏰ Running AI Market Recap...");
-  await runMarketRecap();
+    console.log("⏰ Running AI Unusual Flow...");
+    await runUnusualFlow();
 
-  console.log("⏰ Running AI Unusual Flow...");
-  await runUnusualFlow();
+    console.log("⏰ Posting Flow Tally...");
+    await postFlowTally();
+  },
+  { timezone: "America/New_York" }
+);
 
-  console.log("⏰ Posting Flow Tally...");
-  await postFlowTally();
-});
 
 // ---- END OF DAY SUMMARY ----
 async function runEndOfDaySummary() {
