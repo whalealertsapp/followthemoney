@@ -22,6 +22,7 @@
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
     "express": "^4.21.2",
+    "luxon": "^3.7.2",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "openai": "^6.1.0",
