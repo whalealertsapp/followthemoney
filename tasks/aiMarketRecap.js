@@ -12,30 +12,45 @@ const client = new Client({
 export async function getTopTickersFromDiscord() {
   await client.login(process.env.DISCORD_TOKEN);
 
-  const whaleAlerts = await client.channels.fetch(process.env.DEST_CHANNEL_ID);
-  const messages = await whaleAlerts.messages.fetch({ limit: 100 });
+  // 🔄 Fetch messages from multiple flow channels
+  const channelIds = [
+    process.env.WHALEALERT_CHANNEL_ID, // main calls
+    process.env.TOPDOG_CHANNEL_ID,     // large flows
+    process.env.RISKYBIZ_CHANNEL_ID,   // smaller premiums
+    process.env.PENNYWHALES_CHANNEL_ID // micro trades
+  ].filter(Boolean);
 
-  // 🕒 filter to last 30 minutes
-  const cutoff = Date.now() - 30 * 60 * 1000;
-  const recentMessages = messages.filter(m => m.createdTimestamp >= cutoff);
-
-  // 🧹 parse messages
   const calls = [];
   const puts = [];
+  const allMessages = [];
 
-  for (const msg of recentMessages.values()) {
+  for (const id of channelIds) {
+    try {
+      const channel = await client.channels.fetch(id);
+      const msgs = await channel.messages.fetch({ limit: 100 });
+      allMessages.push(...msgs.values());
+    } catch (err) {
+      console.warn(`⚠️ Could not fetch channel ${id}:`, err.message);
+    }
+  }
+
+  // 🕒 last 30 minutes only
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  const recentMessages = allMessages.filter(m => m.createdTimestamp >= cutoff);
+
+  // 🧹 parse messages
+  for (const msg of recentMessages) {
     const text = msg.content?.toUpperCase() || "";
     if (!text.includes("SAVED TRADE")) continue;
 
     const typeMatch = text.match(/\b(CALL|PUT)\b/);
-    if (!typeMatch) continue;
-    const type = typeMatch[1];
-
     const premMatch = text.match(/PREMIUM\s*\$?([\d,]+)/);
+
+    const type = typeMatch ? typeMatch[1] : null;
     const premium = premMatch ? Number(premMatch[1].replace(/,/g, "")) : 0;
 
     if (type === "CALL") calls.push(premium);
-    if (type === "PUT") puts.push(premium);
+    else if (type === "PUT") puts.push(premium);
   }
 
   const callCount = calls.length;
@@ -61,14 +76,14 @@ You are an experienced AI market analyst summarizing large premium option flow f
 Here are the latest raw posts:
 ${recentMessages.map(m => m.content).filter(Boolean).join("\n")}
 
-Analyze to:
-1. Identify leading tickers & sectors.
-2. Explain sentiment using both counts & premium totals.
-3. Mention notable trades or repeating tickers.
-4. Discuss any sector/hedging themes.
-5. Finish with a forward-looking takeaway.
+Analyze this data to:
+1. Identify dominant tickers and sectors by volume.
+2. Comment on overall sentiment using both trade counts and total premium.
+3. Highlight notable trades or repeating tickers.
+4. Discuss any short-term or sector-based themes visible in the data.
+5. End with what this flow likely means for market direction in the next 1–3 sessions.
 
-Keep it concise and formatted for Discord.
+Keep your answer concise, professional, and formatted as a Discord recap post.
 `;
 
   const completion = await openai.chat.completions.create({
