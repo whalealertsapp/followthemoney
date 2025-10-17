@@ -42,7 +42,7 @@ const PENNY_WHALES_CHANNEL_ID = process.env.PENNY_WHALES_CHANNEL_ID;
 const ALERT_ROLE_ID = process.env.ALERT_ROLE_ID;
 const TOPDOG_ROLE_ID = process.env.TOPDOG_ROLE_ID;
 const UW_API_KEY = process.env.UW_API_KEY;
-const UW_API_URL = process.env.UW_API_URL || "https://api.unusualwhales.com/api/option-trades/flow-alerts?is_put=false&limit=100";
+const UW_API_URL = process.env.UW_API_URL || "https://api.unusualwhales.com/api/option-trades/flow-alerts?limit=100";
 const POLL_MS = Number(process.env.POLL_MS || 30000);
 const MIN_PREMIUM = Number(process.env.MIN_PREMIUM || 50000);
 const DEBUG_MODE = String(process.env.DEBUG_MODE || "").toLowerCase() === "true";
