@@ -33,6 +33,28 @@ async function sendLongMessage(channel, text) {
   }
 }
 
+// ===== MARKET HOURS CHECK =====
+function isMarketOpen() {
+  const now = new Date();
+  // Convert UTC to Eastern Time
+  const estOffset = -4; // EST is UTC-5, but adjust for daylight if needed (-4 for EDT)
+  const estTime = new Date(now.getTime() + estOffset * 60 * 60 * 1000);
+  const hours = estTime.getHours();
+  const minutes = estTime.getMinutes();
+
+  // Market open = 9:30am, close = 4:30pm EST
+  const open = 9 * 60 + 30;
+  const close = 16 * 60 + 30;
+  const current = hours * 60 + minutes;
+
+  // Monday = 1, Friday = 5
+  const day = estTime.getUTCDay();
+  const isWeekday = day >= 1 && day <= 5;
+
+  return isWeekday && current >= open && current <= close;
+}
+
+
 // ===== CONFIG =====
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const DEST_CHANNEL_ID = process.env.DEST_CHANNEL_ID;   // whale-alerts
@@ -526,15 +548,35 @@ let db;
   db = await initDB();
 
   client.once("ready", async () => {
-  console.log(`🚀 Logged in as ${client.user.tag}`);
-  await discordLogger.bind();
-  console.log("✅ CALL & PUT Flow Enabled");
+    console.log(`🚀 Logged in as ${client.user.tag}`);
+    await discordLogger.bind();
+    console.log("✅ CALL & PUT Flow Enabled");
 
-  setInterval(() => pollUW(db), POLL_MS);
-  setInterval(() => postTopDogs(db, 10), 10 * 60 * 1000);
-  setInterval(() => postTopDogs(db, 30), 30 * 60 * 1000);
-  setInterval(() => postTopDogs(db, 60), 60 * 60 * 1000);
-});
+    // ===== MAIN POLLING LOOP (RESPECTS MARKET HOURS) =====
+    setInterval(async () => {
+      if (isMarketOpen()) {
+        console.log("🟢 Market open — polling Unusual Whales...");
+        await pollUW(db);
+      } else {
+        console.log("⚪ Market closed — skipping pollUW.");
+      }
+    }, POLL_MS);
+
+    // ===== TOP DOGS POSTS (10, 30, 60 MINUTES) =====
+    const postIntervals = [10, 30, 60];
+    for (const mins of postIntervals) {
+      setInterval(async () => {
+        if (isMarketOpen()) {
+          console.log(`🟢 Market open — posting Top Dogs (${mins}m)...`);
+          await postTopDogs(db, mins);
+        } else {
+          console.log(`⚪ Market closed — skipping Top Dogs (${mins}m).`);
+        }
+      }, mins * 60 * 1000);
+    }
+  });
+})();
+
 
 // ===== WHOP WEBHOOK LISTENER (AUTO ROLE ASSIGN) =====
 const app = express();
