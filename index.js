@@ -33,27 +33,6 @@ async function sendLongMessage(channel, text) {
   }
 }
 
-// ===== MARKET HOURS CHECK =====
-function isMarketOpen() {
-  const now = new Date();
-  // Convert UTC to Eastern Time
-  const estOffset = -4; // EST is UTC-5, but adjust for daylight if needed (-4 for EDT)
-  const estTime = new Date(now.getTime() + estOffset * 60 * 60 * 1000);
-  const hours = estTime.getHours();
-  const minutes = estTime.getMinutes();
-
-  // Market open = 9:30am, close = 4:30pm EST
-  const open = 9 * 60 + 30;
-  const close = 16 * 60 + 30;
-  const current = hours * 60 + minutes;
-
-  // Monday = 1, Friday = 5
-  const day = estTime.getUTCDay();
-  const isWeekday = day >= 1 && day <= 5;
-
-  return isWeekday && current >= open && current <= close;
-}
-
 
 // ===== CONFIG =====
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -663,29 +642,44 @@ app.listen(3001, () =>
 
 // ===== AI SUMMARIES (EVERY 30 MINUTES, AUTO-DST) =====
 
-// ---- MARKET HOURS CHECK (AUTO-DST ADJUSTED) ----
+// ===== MARKET HOURS CHECK (DST-SAFE & RENDER-SAFE) =====
 function isMarketOpen() {
-  const now = new Date();
+  try {
+    // Get current time in U.S. Eastern (auto-handles DST)
+    const now = new Date();
+    const estString = now.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      hour12: false,
+    });
 
-  // Convert system time to U.S. Eastern time (auto-handles DST)
-  const estTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
-  );
+    // Convert that localized string into a real Date object
+    const est = new Date(estString);
 
-  const day = estTime.getDay();        // 0 = Sunday, 6 = Saturday
-  const hours = estTime.getHours();
-  const minutes = estTime.getMinutes();
-  const current = hours * 60 + minutes;
+    const day = est.getDay(); // 0 = Sunday, 6 = Saturday
+    const hours = est.getHours();
+    const minutes = est.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
 
-  // U.S. stock market hours (Eastern Time)
-  const open = 9 * 60 + 30;   // 9:30 AM
-  const close = 16 * 60 + 30; // 4:30 PM buffer
+    const openMinutes = 9 * 60 + 30;   // 9:30 AM
+    const closeMinutes = 16 * 60 + 30; // 4:30 PM
 
-  const isWeekday = day >= 1 && day <= 5;
-  const isOpen = current >= open && current <= close;
+    const isWeekday = day >= 1 && day <= 5;
+    const withinHours = totalMinutes >= openMinutes && totalMinutes <= closeMinutes;
+    const isOpen = isWeekday && withinHours;
 
-  return isWeekday && isOpen;
+    console.log(
+      `🕒 Market check [Eastern ${est.toLocaleTimeString("en-US", {
+        timeZone: "America/New_York",
+      })}] → ${isOpen ? "OPEN" : "CLOSED"}`
+    );
+
+    return isOpen;
+  } catch (err) {
+    console.error("Error checking market hours:", err);
+    return true; // fail-safe: assume open if time calc fails
+  }
 }
+
 
 // ---- MARKET RECAP ----
 async function runMarketRecap() {
