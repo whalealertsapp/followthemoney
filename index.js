@@ -674,7 +674,6 @@ app.listen(3001, () =>
 
 // ===== AI SUMMARIES (EVERY 30 MINUTES) =====
 import { getMarketRecapSummary } from "./tasks/aiMarketRecap.js";
-import { detectUnusualFromDiscord } from "./tasks/aiUnusualFlow.js";
 
 // ---- MARKET RECAP ----
 async function runMarketRecap() {
