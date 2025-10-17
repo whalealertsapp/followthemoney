@@ -13,8 +13,8 @@ const client = new Client({ intents: ["Guilds", "GuildMessages", "MessageContent
 export async function detectUnusualFromDiscord() {
   await client.login(process.env.DISCORD_TOKEN);
 
-  // ✅ use FLOW-LOG channel which includes both CALLs and PUTs
-  const flowLog = await client.channels.fetch(process.env.FLOWLOG_CHANNEL_ID);
+  // 🔄 Fetch from the unified FLOW-LOG channel (contains both CALLs and PUTs)
+  const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
   const messages = await flowLog.messages.fetch({ limit: 100 });
 
   // 🕒 filter to last 30 minutes
