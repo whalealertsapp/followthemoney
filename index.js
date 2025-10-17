@@ -572,8 +572,6 @@ console.log = (...args) => {
 };
 
 
-
-
 // ===== INIT =====
 let db;
 (async () => {
@@ -663,6 +661,8 @@ console.log("📩 Incoming webhook from Whop:", req.body);
     res.status(200).send("ok");
   }
 });
+
+const PORT = process.env.PORT || 3001;
 
 if (!process.env.RENDER || process.env.NODE_APP_INSTANCE === "0") {
   app.listen(PORT, () => console.log(`🚀 Listening on port ${PORT}`));
