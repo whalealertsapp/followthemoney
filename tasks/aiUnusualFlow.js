@@ -51,6 +51,13 @@ export async function detectUnusualFromDiscord() {
     `🧩 UnusualFlow parsed ${callCount} CALLs ($${callTotal.toLocaleString()}) and ${putCount} PUTs ($${putTotal.toLocaleString()}) from past 30 min`
   );
 
+  // 🚫 Skip posting if no new trades
+  if (callCount === 0 && putCount === 0) {
+    console.log("⚠️ No new trades in the past 30 minutes — skipping AI Unusual Flow post.");
+    await client.destroy();
+    return;
+  }
+
   // 🧠 AI prompt
   const prompt = `
 You are an AI market analyst specializing in large options flow.
