@@ -124,7 +124,6 @@ async function safeFetch(url, options, retries = 3) {
 
 // ===== POLL UW API =====
 // 🧠 Prevent reposting identical trades across poll cycles
-const processedTrades = new Set();
 
 async function pollUW(db) {
   if (DEBUG_MODE) console.log(`⏳ Polling UW API every ${POLL_MS}ms...`);
