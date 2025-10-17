@@ -13,8 +13,9 @@ const client = new Client({ intents: ["Guilds", "GuildMessages", "MessageContent
 export async function detectUnusualFromDiscord() {
   await client.login(process.env.DISCORD_TOKEN);
 
-  const whaleAlerts = await client.channels.fetch(process.env.DEST_CHANNEL_ID);
-  const messages = await whaleAlerts.messages.fetch({ limit: 100 });
+  // ✅ use FLOW-LOG channel which includes both CALLs and PUTs
+  const flowLog = await client.channels.fetch(process.env.FLOWLOG_CHANNEL_ID);
+  const messages = await flowLog.messages.fetch({ limit: 100 });
 
   // 🕒 filter to last 30 minutes
   const cutoff = Date.now() - 30 * 60 * 1000;
@@ -36,7 +37,7 @@ export async function detectUnusualFromDiscord() {
     const premium = premMatch ? Number(premMatch[1].replace(/,/g, "")) : 0;
 
     if (type === "CALL") calls.push(premium);
-    if (type === "PUT") puts.push(premium);
+    else if (type === "PUT") puts.push(premium);
   }
 
   // 🔢 totals
@@ -70,7 +71,7 @@ Analyze this data to:
 4. Note any sector concentration.
 5. Conclude with near-term expectations.
 
-Keep it 6-8 sentences, formatted for a Discord trader post.
+Keep it 6–8 sentences, formatted for a Discord trader post.
 `;
 
   const completion = await openai.chat.completions.create({
