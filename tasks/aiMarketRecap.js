@@ -63,8 +63,8 @@ ${recentMessages.map(m => m.content).filter(Boolean).join("\n")}
 Analyze this data to:
 1. Identify the 5 leading tickers & 5 leading sectors based on total volume in last 60 minutes.
 2. Give detail on the background of companies receiving this volume and any recent news/developments publicly disclosed or rumored in the last 10 days.
-3. Highlight standout trades.
-4. Discuss hedging or sector themes.
+3. Highlight standout trades based on size and rarity.
+4. Discuss hedging or sector themes you notice within the data from the eyes of an experienced trader.
 5. Give a forward-looking takeaway.
 
 Format for Discord.
