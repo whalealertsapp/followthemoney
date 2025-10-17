@@ -5,6 +5,7 @@ dotenv.config();
 
 const client = new Client({ intents: ["Guilds", "GuildMessages", "MessageContent"] });
 
+// ✅ Proper named export
 export async function postFlowTally() {
   await client.login(process.env.DISCORD_TOKEN);
 
@@ -13,7 +14,7 @@ export async function postFlowTally() {
     const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
     const messages = await flowLog.messages.fetch({ limit: 100 });
 
-    // 🕒 last 30 minutes
+    // 🕒 Last 30 minutes
     const cutoff = Date.now() - 30 * 60 * 1000;
     const recentMessages = messages.filter(m => m.createdTimestamp >= cutoff);
 
@@ -68,5 +69,3 @@ ${sentiment}
     await client.destroy();
   }
 }
-
-export default { postFlowTally };
