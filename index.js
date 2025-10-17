@@ -661,7 +661,31 @@ app.listen(3001, () =>
 
 })();
 
-// ===== AI SUMMARIES (EVERY 30 MINUTES) =====
+// ===== AI SUMMARIES (EVERY 30 MINUTES, AUTO-DST) =====
+
+// ---- MARKET HOURS CHECK (AUTO-DST ADJUSTED) ----
+function isMarketOpen() {
+  const now = new Date();
+
+  // Convert system time to U.S. Eastern time (auto-handles DST)
+  const estTime = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+  );
+
+  const day = estTime.getDay();        // 0 = Sunday, 6 = Saturday
+  const hours = estTime.getHours();
+  const minutes = estTime.getMinutes();
+  const current = hours * 60 + minutes;
+
+  // U.S. stock market hours (Eastern Time)
+  const open = 9 * 60 + 30;   // 9:30 AM
+  const close = 16 * 60 + 30; // 4:30 PM buffer
+
+  const isWeekday = day >= 1 && day <= 5;
+  const isOpen = current >= open && current <= close;
+
+  return isWeekday && isOpen;
+}
 
 // ---- MARKET RECAP ----
 async function runMarketRecap() {
@@ -677,7 +701,6 @@ async function runMarketRecap() {
       return;
     }
 
-    // Clean duplicate title if already included in recap
     let cleanedRecap = recap.replace(/^🧠\s*\*\*AI Market Recap:\*\*/i, "").trim();
 
     const channel = await client.channels.fetch(process.env.MARKET_RECAP_CHANNEL_ID);
@@ -686,13 +709,12 @@ async function runMarketRecap() {
       return;
     }
 
-    // Split and send long messages
     const fullMessage = `🧠 **AI Market Recap:**\n${cleanedRecap}`;
     const chunks = fullMessage.match(/[\s\S]{1,1990}/g);
 
     for (const chunk of chunks) {
       await channel.send(chunk);
-      await new Promise((r) => setTimeout(r, 500)); // prevent rate-limit issues
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     console.log("✅ Posted AI Market Recap");
