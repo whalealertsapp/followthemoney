@@ -664,9 +664,11 @@ console.log("📩 Incoming webhook from Whop:", req.body);
   }
 });
 
-app.listen(3001, () =>
-  console.log("🚀 Whop webhook listening on /webhooks/whop")
-);
+if (!process.env.RENDER || process.env.NODE_APP_INSTANCE === "0") {
+  app.listen(PORT, () => console.log(`🚀 Listening on port ${PORT}`));
+} else {
+  console.log(`⚙️ Skipping duplicate Express bind on port ${PORT}`);
+}
 
 
   await client.login(DISCORD_TOKEN);
