@@ -64,6 +64,8 @@ const client = new Client({
 // ===== DATABASE =====
 async function initDB() {
   const db = new sqlite3.Database('./whales.db');
+
+  // Create whale_trades table
   await new Promise((resolve, reject) => {
     db.run(`
       CREATE TABLE IF NOT EXISTS whale_trades (
@@ -82,9 +84,21 @@ async function initDB() {
         source TEXT
       )`, (err) => err ? reject(err) : resolve());
   });
+
+  // ✅ Add meta table for persistent settings like lastTradeTime
+  await new Promise((resolve, reject) => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
+    `, (err) => err ? reject(err) : resolve());
+  });
+
   console.log("📂 Database ready: whales.db");
   return db;
 }
+
 function runSql(db, sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
@@ -93,6 +107,7 @@ function runSql(db, sql, params = []) {
     });
   });
 }
+
 function allSql(db, sql, params = []) {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
@@ -101,6 +116,7 @@ function allSql(db, sql, params = []) {
     });
   });
 }
+
 
 // ===== UTILS =====
 const numFmt = (n) => `$${Number(n).toLocaleString()}`;
@@ -141,11 +157,30 @@ async function pollUW(db) {
 
   if (DEBUG_MODE) console.log(`🔎 Retrieved ${json.data.length} trades`);
 
+  // ✅ Load last saved timestamp from DB
+  let lastTradeTime = 0;
+  try {
+    const rows = await allSql(db, 'SELECT value FROM meta WHERE key = "lastTradeTime"');
+    if (rows.length > 0 && rows[0].value) {
+      lastTradeTime = Number(rows[0].value);
+    }
+  } catch (err) {
+    console.error("⚠️ Could not read lastTradeTime from DB:", err);
+  }
+
   for (const t of json.data) {
-    // 🧩 Create a unique fingerprint for this trade to prevent duplicates
+    const tradeTimestamp = new Date(t.created_at).getTime();
+
+    // 🚫 Skip if older than the last processed trade
+    if (tradeTimestamp <= lastTradeTime) {
+      if (DEBUG_MODE) console.log(`⏩ Skipping old trade (${t.ticker}) @ ${t.created_at}`);
+      continue;
+    }
+
+    // 🧩 Create a unique fingerprint for this trade to prevent duplicates in same session
     const tradeKey = `${t.ticker}-${t.type}-${t.strike}-${t.expiry}-${t.created_at}-${t.total_premium}`;
 
-    // 🚫 Skip if this trade was already processed
+    // 🚫 Skip if this trade was already processed during current runtime
     if (processedTrades.has(tradeKey)) {
       if (DEBUG_MODE) console.log(`⚠️ Skipping duplicate trade: ${tradeKey}`);
       continue;
@@ -207,72 +242,63 @@ async function pollUW(db) {
           if (normalized.premium >= 300_000 && daysLeft > 0 && daysLeft <= 10)
             await postShortFuseWhale(normalized, daysLeft);
 
+          // ✅ Update lastTradeTime in memory and DB
+          lastTradeTime = Math.max(lastTradeTime, tradeTimestamp);
+          await runSql(
+            db,
+            'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+            ["lastTradeTime", lastTradeTime.toString()]
+          );
         }
       }
 
-// === HANDLE CALL TRADES ===
-if (normalized.premium >= MIN_PREMIUM && normalized.type === "call") {
-  const result = await runSql(
-    db,
-    `INSERT OR IGNORE INTO whale_trades
-     (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    Object.values(normalized)
-  );
+      // === HANDLE PUT TRADES ===
+      if (normalized.premium >= MIN_PREMIUM && normalized.type === "put") {
+        const result = await runSql(
+          db,
+          `INSERT OR IGNORE INTO whale_trades
+           (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          Object.values(normalized)
+        );
 
-  if (result.changes > 0) {
-    console.log(
-      `✅ Saved trade: ${normalized.ticker} CALL $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
-    );
+        if (result.changes > 0) {
+          console.log(
+            `✅ Saved trade: ${normalized.ticker} PUT $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
+          );
 
-    await postTrade(normalized);
+          await postPutTrade(normalized);
 
-    let daysLeft = 0;
-    try {
-      const expDate = new Date(`${normalized.expiration}T00:00:00Z`);
-      const today = new Date();
-      daysLeft = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-    } catch {}
+          // ✅ Update lastTradeTime for PUTs as well
+          lastTradeTime = Math.max(lastTradeTime, tradeTimestamp);
+          await runSql(
+            db,
+            'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+            ["lastTradeTime", lastTradeTime.toString()]
+          );
+        }
+      }
 
-    if (normalized.premium >= 1_000_000) await postMegaWhale(normalized, daysLeft);
-    if (normalized.premium >= 300_000 && daysLeft > 0 && daysLeft <= 10)
-      await postShortFuseWhale(normalized, daysLeft);
-  }
-}
+      // --- PENNY WHALE LOGIC ---
+      const trueAvg =
+        normalized.avg_price > 0
+          ? normalized.avg_price
+          : normalized.contracts > 0
+          ? normalized.premium / (normalized.contracts * 100)
+          : 0;
 
-// === HANDLE PUT TRADES ===
-if (normalized.premium >= MIN_PREMIUM && normalized.type === "put") {
-  const result = await runSql(
-    db,
-    `INSERT OR IGNORE INTO whale_trades
-     (uw_id, ticker, type, strike, expiration, avg_price, contracts, oi, premium, iv, trade_time, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    Object.values(normalized)
-  );
-
-  if (result.changes > 0) {
-    console.log(
-      `✅ Saved trade: ${normalized.ticker} PUT $${normalized.strike} exp ${normalized.expiration} — Premium ${numFmt(normalized.premium)}`
-    );
-
-    await postPutTrade(normalized);
-  }
-}
-
-// --- PENNY WHALE LOGIC (runs for all trades, not limited by $300K MIN_PREMIUM) ---
-const trueAvg = normalized.avg_price > 0
-  ? normalized.avg_price
-  : (normalized.contracts > 0 ? normalized.premium / (normalized.contracts * 100) : 0);
-
-if (normalized.premium >= 100_000 && trueAvg > 0 && trueAvg <= 1.0) {
-  console.log(`🐋 Penny Whale detected: ${normalized.ticker} ${normalized.type.toUpperCase()} $${normalized.strike} exp ${normalized.expiration} — Avg $${trueAvg.toFixed(2)}, Premium ${numFmt(normalized.premium)}`);
-  await postPennyWhale({ ...normalized, avg_price: trueAvg });
-}
-
+      if (normalized.premium >= 100_000 && trueAvg > 0 && trueAvg <= 1.0) {
+        console.log(
+          `🐋 Penny Whale detected: ${normalized.ticker} ${normalized.type.toUpperCase()} $${normalized.strike} exp ${normalized.expiration} — Avg $${trueAvg.toFixed(2)}, Premium ${numFmt(normalized.premium)}`
+        );
+        await postPennyWhale({ ...normalized, avg_price: trueAvg });
+      }
     } catch (err) {
       console.error("❌ DB insert error:", err);
     }
   }
+
+  if (DEBUG_MODE) console.log("✅ Poll cycle complete.");
 }
 
 
@@ -578,6 +604,21 @@ console.log = (...args) => {
 let db;
 (async () => {
   db = await initDB();
+
+// ===== LOAD LAST TRADE TIMESTAMP (persistent anti-duplicate) =====
+let lastTradeTime = 0;
+
+try {
+  const rows = await allSql(db, 'SELECT value FROM meta WHERE key = "lastTradeTime"');
+  if (rows.length > 0 && rows[0].value) {
+    lastTradeTime = Number(rows[0].value);
+    console.log(`🕒 Resuming from last posted trade: ${new Date(lastTradeTime).toLocaleString()}`);
+  } else {
+    console.log("🆕 No previous trade record found — starting fresh.");
+  }
+} catch (err) {
+  console.error("⚠️ Could not load lastTradeTime from DB:", err);
+}
 
   client.once("ready", async () => {
   console.log(`🚀 Logged in as ${client.user.tag}`);
