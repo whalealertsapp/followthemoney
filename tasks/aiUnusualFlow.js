@@ -100,3 +100,5 @@ Keep it concise, formatted for a Discord trader post.
 }
 
 export default { runAIUnusualFlow };
+
+export { runAIUnusualFlow as detectUnusualFromDiscord };
