@@ -2,14 +2,26 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import { Client, GatewayIntentBits } from "discord.js";
+import { isMarketOpen } from "../utils/marketHours.js";
+
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ],
 });
 
 export async function getTopTickersFromDiscord() {
+  // ✅ Check before doing any heavy work
+  if (!isMarketOpen()) {
+    console.log("⏸️ Market closed — skipping AI Market Recap.");
+    return;
+  }
+
   await client.login(process.env.DISCORD_TOKEN);
 
   // ✅ Fetch from FLOW-LOG (unified call/put log)
@@ -38,6 +50,7 @@ export async function getTopTickersFromDiscord() {
     if (type === "CALL") calls.push(premium);
     else if (type === "PUT") puts.push(premium);
   }
+
 
   console.log(`🧩 MarketRecap found ${calls.length} CALLs and ${puts.length} PUTs in ${recentMessages.size} recent messages`);
 

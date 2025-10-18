@@ -2,17 +2,29 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import { Client, GatewayIntentBits } from "discord.js";
+import { isMarketOpen } from "../utils/marketHours.js";
+
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 /**
  * 🧠 AI analysis based on live Discord flow (past 60 minutes)
  */
-export async function detectUnusualFromDiscord() {
+export async function runAIUnusualFlow() {
+  // ✅ Market-hours guard
+  if (!isMarketOpen()) {
+    console.log("⏸️ Market closed — skipping AI Unusual Flow.");
+    return;
+  }
+
   await client.login(process.env.DISCORD_TOKEN);
 
   // ✅ Fetch from unified FLOW-LOG channel
@@ -22,7 +34,7 @@ export async function detectUnusualFromDiscord() {
 
   // 🕒 Last 60 minutes
   const cutoff = Date.now() - 60 * 60 * 1000;
-  const recentMessages = allMessages.filter(m => m.createdTimestamp >= cutoff);
+  const recentMessages = allMessages.filter((m) => m.createdTimestamp >= cutoff);
 
   const calls = [];
   const puts = [];
@@ -42,7 +54,9 @@ export async function detectUnusualFromDiscord() {
     else if (type === "PUT") puts.push(premium);
   }
 
-  console.log(`🧩 UnusualFlow found ${calls.length} CALLs and ${puts.length} PUTs in ${recentMessages.size} messages`);
+  console.log(
+    `🧩 UnusualFlow found ${calls.length} CALLs and ${puts.length} PUTs in ${recentMessages.size} messages`
+  );
 
   // 🔢 Totals
   const callCount = calls.length;
@@ -62,7 +76,7 @@ You are an AI market analyst specializing in large options flow.
 - Approx. Ratio: ${ratio}:1 (CALL:PUT)
 
 Here are the raw posts for context:
-${recentMessages.map(m => m.content).filter(Boolean).join("\n")}
+${recentMessages.map((m) => m.content).filter(Boolean).join("\n")}
 
 Analyze this data to:
 1. Identify the most interesting trades that stand out in this timeframe.
@@ -85,4 +99,4 @@ Keep it concise, formatted for a Discord trader post.
   return header + completion.choices[0].message.content.trim();
 }
 
-export default { detectUnusualFromDiscord };
+export default { runAIUnusualFlow };

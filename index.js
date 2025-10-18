@@ -1,4 +1,6 @@
 // ===== IMPORTS =====
+import { isMarketOpen, getMarketStatus } from "./utils/marketHours.js";
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -746,6 +748,11 @@ async function runUnusualFlow() {
 cron.schedule(
   "*/30 * * * *",
   async () => {
+    if (!isMarketOpen()) {
+      console.log(`🕓 Market is ${getMarketStatus()} — skipping cron tasks.`);
+      return;
+    }
+
     console.log("⏰ Running AI Market Recap...");
     await runMarketRecap();
 
@@ -757,6 +764,7 @@ cron.schedule(
   },
   { timezone: "America/New_York" }
 );
+
 
 // ===== MANUAL TRIGGERS (for Render Shell or Local Testing) =====
 if (process.argv.includes("--recap")) {
@@ -794,8 +802,11 @@ async function runEndOfDaySummary() {
   }
 }
 
-// Schedule for 4:10 PM Eastern (21:10 UTC)
-cron.schedule("10 21 * * 1-5", async () => {
-  console.log("🕓 Running End of Day Summary...");
-  await runEndOfDaySummary();
-});
+cron.schedule(
+  "5 16 * * 1-5",
+  async () => {
+    console.log("🔔 Market closed — posting final Flow Tally...");
+    await postFlowTally(true); // You can check for this flag in flowTally.js
+  },
+  { timezone: "America/New_York" }
+);
