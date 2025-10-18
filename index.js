@@ -146,6 +146,12 @@ async function safeFetch(url, options, retries = 3) {
 async function pollUW(db) {
   if (DEBUG_MODE) console.log(`⏳ Polling UW API every ${POLL_MS}ms...`);
 
+  // 🕓 Skip API polling when market is closed
+  if (!isMarketOpen()) {
+    if (DEBUG_MODE) console.log("🕓 Market closed — skipping UW API poll.");
+    return;
+  }
+
   const json = await safeFetch(UW_API_URL, {
     headers: { Authorization: `Bearer ${UW_API_KEY}` },
   });
