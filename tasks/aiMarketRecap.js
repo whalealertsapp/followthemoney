@@ -15,8 +15,11 @@ const client = new Client({
   ],
 });
 
+/**
+ * 🧠 AI Market Recap — Macro Option Flow Overview
+ * Dynamically adjusts its lookback window (45 min intraday, 60 min near close).
+ */
 export async function getTopTickersFromDiscord() {
-  // ✅ Check before doing any heavy work
   if (!isMarketOpen()) {
     console.log("⏸️ Market closed — skipping AI Market Recap.");
     return;
@@ -24,13 +27,18 @@ export async function getTopTickersFromDiscord() {
 
   await client.login(process.env.DISCORD_TOKEN);
 
-  // ✅ Fetch from FLOW-LOG (unified call/put log)
+  // ✅ Pull data from FLOW-LOG (unified call/put log)
   const flowLog = await client.channels.fetch(process.env.FLOW_LOG_CHANNEL_ID);
   const messages = await flowLog.messages.fetch({ limit: 100 });
   const allMessages = [...messages.values()];
 
-  // 🕒 last 60 minutes
-  const cutoff = Date.now() - 60 * 60 * 1000;
+  // 🕒 Determine ET hour and dynamic lookback window
+  const now = new Date();
+  const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const estHour = estNow.getHours() + estNow.getMinutes() / 60;
+
+  const lookbackMinutes = estHour >= 15.5 ? 60 : 45; // after 3:30 PM ET widen window
+  const cutoff = Date.now() - lookbackMinutes * 60 * 1000;
   const recentMessages = allMessages.filter(m => m.createdTimestamp >= cutoff);
 
   const calls = [];
@@ -51,47 +59,59 @@ export async function getTopTickersFromDiscord() {
     else if (type === "PUT") puts.push(premium);
   }
 
+  console.log(
+    `🧩 MarketRecap (${lookbackMinutes}m window) found ${calls.length} CALLs and ${puts.length} PUTs in ${recentMessages.size} messages`
+  );
 
-  console.log(`🧩 MarketRecap found ${calls.length} CALLs and ${puts.length} PUTs in ${recentMessages.size} recent messages`);
-
+  // 🔢 Aggregations
   const callCount = calls.length;
   const putCount = puts.length;
   const callTotal = calls.reduce((a, b) => a + b, 0);
   const putTotal = puts.reduce((a, b) => a + b, 0);
   const ratio = putCount ? (callCount / putCount).toFixed(2) : callCount;
 
-  // 🧠 Prompt
+  // 🧠 AI Prompt — refined for macro tone
   const prompt = `
-You are an experienced AI market analyst summarizing large premium option flow.
+You are an AI market analyst writing a high-level macro recap for an options trading community.
+Use a professional, confident tone with subtle trader edge.
 
-⏱️ **Analyzed Window:** Past 60 minutes
-📊 **Call vs Put Summary**
+---
+**Data Overview**
+- Detection Window: Past ${lookbackMinutes} minutes
 - CALL trades: ${callCount} totaling ~$${callTotal.toLocaleString()}
 - PUT trades: ${putCount} totaling ~$${putTotal.toLocaleString()}
 - Approx. Ratio: ${ratio}:1 (CALL:PUT)
 
-Here are the latest raw posts:
+Raw flow excerpts:
 ${recentMessages.map(m => m.content).filter(Boolean).join("\n")}
 
-Analyze this data to:
-1. Identify the 5 leading tickers & 5 leading sectors based on total volume in last 60 minutes.
-2. Give detail on the background of companies receiving this volume and any recent news/developments publicly disclosed or rumored in the last 10 days.
-3. Highlight standout trades based on size and rarity.
-4. Discuss hedging or sector themes you notice within the data from the eyes of an experienced trader.
-5. Give a forward-looking takeaway.
+---
+**Your tasks**
+1. Identify the 5 most active tickers and the 5 most impacted sectors based on aggregated volume or frequency.
+2. Explain what this flow suggests about *broader market sentiment* — risk-on, defensive, rotation, hedging, etc.
+3. Note any concentration in expiry dates or strike clusters that could hint at near-term catalysts.
+4. Provide relevant background or public headlines that might explain unusual activity in the leading names (limit to recent 10 days).
+5. End with a brief, forward-looking summary (1–3 sessions) in trader terms.
 
-Format for Discord.
+Keep response under ${estHour >= 15.5 ? "500" : "300"} words, structured with clean headers, emojis, and concise bullet points for Discord readability.
 `;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
-    temperature: 0.7,
+    temperature: 0.65,
   });
 
   await client.destroy();
 
-  const header = `🧠 **AI Market Recap**\n⏱️ Past 60 Minutes | 📊 CALL vs PUT → ${callCount} vs ${putCount} | $${callTotal.toLocaleString()} vs $${putTotal.toLocaleString()} | Ratio ${ratio}:1\n\n`;
+  // 🪄 Header — dynamically reflects lookback window
+  const header = [
+    "🧠 **AI Market Recap — Macro Option Flow Overview**",
+    `⏱️ **Past ${lookbackMinutes} Minutes** | 📊 CALLs: ${callCount} ($${callTotal.toLocaleString()}) | PUTs: ${putCount} ($${putTotal.toLocaleString()}) | Ratio ${ratio}:1`,
+    "🪞 A data-driven snapshot of where premium and conviction are flowing across the market.",
+    "",
+  ].join("\n");
+
   return header + completion.choices[0].message.content.trim();
 }
 
