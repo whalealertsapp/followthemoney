@@ -1,26 +1,19 @@
 // utils/marketHours.js
 export function isMarketOpen() {
   const now = new Date();
-  const est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const day = est.getDay();
-  const hour = est.getHours();
-  const minute = est.getMinutes();
+  const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
 
-  // Skip weekends
-  if (day === 0 || day === 6) return false;
+  const day = estNow.getDay();      // 0=Sun ... 6=Sat
+  const hour = estNow.getHours();
+  const minute = estNow.getMinutes();
 
-  // Regular market hours: 9:30 AM – 4:00 PM ET
-  const openMinutes = 9 * 60 + 30;
-  const closeMinutes = 16 * 60;
-  const currentMinutes = hour * 60 + minute;
+  // Market open Monday–Friday 9:30 AM – 4:00 PM ET
+  const isWeekday = day >= 1 && day <= 5;
+  const isOpen = (hour > 9 || (hour === 9 && minute >= 30)) && hour < 16;
 
-  return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
-}
-
-export function isMarketClosed() {
-  return !isMarketOpen();
+  return isWeekday && isOpen;
 }
 
 export function getMarketStatus() {
-  return isMarketOpen() ? "OPEN" : "CLOSED";
+  return isMarketOpen() ? "open" : "closed";
 }
