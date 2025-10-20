@@ -752,10 +752,10 @@ cron.schedule(
     }
 
     console.log("⏰ Running AI Market Recap...");
-    await runMarketRecap();
+    await getTopTickersFromDiscord();
 
     console.log("⏰ Running AI Unusual Flow...");
-    await runUnusualFlow();
+    await detectUnusualFromDiscord();
 
     console.log("⏰ Posting Flow Tally...");
     await postFlowTally();
