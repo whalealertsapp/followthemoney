@@ -792,6 +792,10 @@ async function runUnusualFlow() {
 }
 
 // ---- SCHEDULED EXECUTION ----
+async function postFlowTally() {
+  console.log("📊 (postFlowTally placeholder) — skipped");
+}
+
 cron.schedule(
   "*/30 * * * *",
   async () => {
