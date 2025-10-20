@@ -163,6 +163,19 @@ async function pollUW(db) {
 
   if (DEBUG_MODE) console.log(`🔎 Retrieved ${json.data.length} trades`);
 
+// ---- UW outage / stale-data check ----
+if (Array.isArray(json.data) && json.data.length > 0) {
+  const newestTradeTime = new Date(json.data[0].created_at || json.data[0].timestamp);
+  const now = new Date();
+  const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+
+  // Compare the trade day to today's ET day
+  if (newestTradeTime.getUTCDate() !== estNow.getDate()) {
+    console.log("⚠️ UW API returning stale data — possible outage");
+    return; // skip processing this poll cycle
+  }
+}
+
   // ✅ Load last saved timestamp from DB
   let lastTradeTime = 0;
   try {
