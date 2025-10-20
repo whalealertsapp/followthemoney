@@ -767,18 +767,19 @@ cron.schedule(
 // ===== MANUAL TRIGGERS (for Render Shell or Local Testing) =====
 if (process.argv.includes("--recap")) {
   console.log("🧠 Manual trigger: AI Market Recap");
-  runMarketRecap().then(() => process.exit(0));
+  getTopTickersFromDiscord().then(() => process.exit(0));
 }
 
 if (process.argv.includes("--flow")) {
   console.log("🚨 Manual trigger: AI Unusual Flow");
-  runUnusualFlow().then(() => process.exit(0));
+  detectUnusualFromDiscord().then(() => process.exit(0));
 }
 
 if (process.argv.includes("--tally")) {
   console.log("📊 Manual trigger: Flow Tally");
   postFlowTally().then(() => process.exit(0));
 }
+
 
 
 // ---- END OF DAY SUMMARY ----
